@@ -3,6 +3,11 @@
 RAG-based Student Work Auto-Grader (Streamlit) - Enhanced UX Version
 Applying HCI Principles: Progressive Disclosure, Immediate Feedback, Clear Affordances, etc.
 """
+# Optional PDF import
+try:
+    import pdfplumber
+except Exception:
+    pdfplumber = None
 
 import os
 import json
@@ -117,31 +122,52 @@ def read_text_file(uploaded_file) -> str:
     if uploaded_file is None:
         return ""
     
-    # Show file processing status
     with st.status(f"📄 Processing {uploaded_file.name}...", state="running") as status:
         try:
             content = uploaded_file.getvalue()
             name = uploaded_file.name.lower()
-            
+            result = ""
+
             if name.endswith(".txt"):
                 result = content.decode("utf-8")
+
             elif name.endswith(".docx"):
                 if docx2txt:
-                    tmp_path = f"/tmp/temp_upload_{int(time.time())}.docx"
+                    tmp_path = f"/tmp/temp_{int(time.time())}.docx"
                     with open(tmp_path, "wb") as f:
                         f.write(content)
                     result = docx2txt.process(tmp_path)
                 else:
-                    result = ""
-                    st.warning("📝 docx2txt not installed; please install with: pip install docx2txt")
+                    st.warning("📝 docx2txt not installed")
+
+            elif name.endswith(".pdf"):
+                if pdfplumber:
+                    tmp_path = f"/tmp/temp_{int(time.time())}.pdf"
+                    with open(tmp_path, "wb") as f:
+                        f.write(content)
+
+                    text_pages = []
+                    with pdfplumber.open(tmp_path) as pdf:
+                        for page in pdf.pages:
+                            page_text = page.extract_text()
+                            if page_text:
+                                text_pages.append(page_text)
+
+                    result = "\n".join(text_pages)
+                else:
+                    st.warning("📄 pdfplumber not installed; run `pip install pdfplumber`")
+
             else:
-                result = content.decode("utf-8")
-                
+                result = content.decode("utf-8", errors="ignore")
+
             status.update(label=f"✅ Processed {uploaded_file.name}", state="complete")
-            return result
+            return result.strip()
+
         except Exception as e:
             status.update(label=f"❌ Error processing {uploaded_file.name}", state="error")
+            st.error(str(e))
             return ""
+
 
 def safe_load_json(text: str) -> Optional[dict]:
     try:
@@ -369,7 +395,7 @@ with tab1:
         st.markdown("#### 📋 Exercise Description")
         ex_file = st.file_uploader(
             "Upload exercise document", 
-            type=["txt","docx"],
+            type=["txt","docx", "pdf"],
             help="Upload a .txt or .docx file with the exercise instructions"
         )
         ex_text_paste = st.text_area(
@@ -383,7 +409,7 @@ with tab1:
         student_files = st.file_uploader(
             "Upload student files", 
             accept_multiple_files=True, 
-            type=["txt","docx"],
+            type=["txt","docx", "pdf"],
             help="Upload multiple student submissions at once"
         )
         student_paste = st.text_area(
