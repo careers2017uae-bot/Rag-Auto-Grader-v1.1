@@ -27,14 +27,6 @@ try:
 except Exception:
     lang_tool = None
 
-# New: PDF processing imports
-try:
-    import PyPDF2
-    pdf_available = True
-except Exception:
-    pdf_available = False
-    PyPDF2 = None
-
 # ==================== HCI ENHANCEMENTS ====================
 st.set_page_config(
     page_title="RAG-Based Intelligent Auto-Grader", 
@@ -121,38 +113,6 @@ embedding_model = load_embedding_model()
 # ---------------------------
 # Enhanced Utilities with Progress Indicators
 # ---------------------------
-def extract_text_from_pdf(pdf_content: bytes) -> str:
-    """Extract text content from PDF file"""
-    if not pdf_available or not PyPDF2:
-        return ""
-    
-    try:
-        import io
-        pdf_file = io.BytesIO(pdf_content)
-        pdf_reader = PyPDF2.PdfReader(pdf_file)
-        
-        text_parts = []
-        total_pages = len(pdf_reader.pages)
-        
-        for page_num in range(total_pages):
-            page = pdf_reader.pages[page_num]
-            page_text = page.extract_text()
-            if page_text.strip():
-                text_parts.append(page_text)
-        
-        # Join all pages with page separators
-        full_text = "\n\n[Page Break]\n\n".join(text_parts)
-        
-        # Clean up common PDF artifacts
-        full_text = full_text.replace('\x00', '')  # Remove null characters
-        full_text = ' '.join(full_text.split())    # Normalize whitespace
-        
-        return full_text
-        
-    except Exception as e:
-        st.warning(f"⚠️ PDF extraction error: {str(e)}")
-        return ""
-
 def read_text_file(uploaded_file) -> str:
     if uploaded_file is None:
         return ""
@@ -165,46 +125,22 @@ def read_text_file(uploaded_file) -> str:
             
             if name.endswith(".txt"):
                 result = content.decode("utf-8")
-                status.update(label=f"✅ Processed text file: {uploaded_file.name}", state="complete")
-                
             elif name.endswith(".docx"):
                 if docx2txt:
                     tmp_path = f"/tmp/temp_upload_{int(time.time())}.docx"
                     with open(tmp_path, "wb") as f:
                         f.write(content)
                     result = docx2txt.process(tmp_path)
-                    status.update(label=f"✅ Processed Word document: {uploaded_file.name}", state="complete")
                 else:
                     result = ""
-                    st.warning("📝 docx2txt not installed; please install with: pip install python-docx")
-                    status.update(label=f"❌ Cannot process .docx - missing dependency", state="error")
-                    
-            elif name.endswith(".pdf"):
-                if pdf_available:
-                    result = extract_text_from_pdf(content)
-                    if result:
-                        status.update(label=f"✅ Extracted text from PDF: {uploaded_file.name} ({len(result)} chars)", state="complete")
-                    else:
-                        status.update(label=f"⚠️ PDF processed but no text extracted", state="error")
-                else:
-                    result = ""
-                    st.warning("📄 PyPDF2 not installed; please install with: pip install PyPDF2")
-                    status.update(label=f"❌ Cannot process .pdf - missing dependency", state="error")
-                    
+                    st.warning("📝 docx2txt not installed; please install with: pip install docx2txt")
             else:
-                # Try to decode as text for unknown extensions
-                try:
-                    result = content.decode("utf-8")
-                    status.update(label=f"✅ Processed as text file: {uploaded_file.name}", state="complete")
-                except:
-                    result = str(content)
-                    status.update(label=f"⚠️ Processed as binary (non-text content)", state="complete")
-            
+                result = content.decode("utf-8")
+                
+            status.update(label=f"✅ Processed {uploaded_file.name}", state="complete")
             return result
-            
         except Exception as e:
             status.update(label=f"❌ Error processing {uploaded_file.name}", state="error")
-            st.error(f"Error processing file: {str(e)}")
             return ""
 
 def safe_load_json(text: str) -> Optional[dict]:
@@ -406,26 +342,19 @@ with st.sidebar:
     # System status
     st.markdown("### 🔍 System Status")
     st.success("✅ Embedding model loaded")
-    st.info(f"📊 Grammar checking: {'✅ Available' if lang_tool else '🔶 Basic checking available'}")
-    st.info(f"📄 PDF Support: {'✅ Available' if pdf_available else '❌ Install PyPDF2'}")
+    st.info(f"📊 Grammar checking: {'✅ Available' if lang_tool else  '🔶 Basic checking available'}")
+    # In the sidebar section, replace the grammar checking status line:
+    #st.info(f"📊 Grammar checking: {'✅ Available' if lang_tool else '🔶 Basic checking available'}")
     st.info(f"🤖 AI feedback: {'✅ Available' if os.getenv('GROQ_API_KEY') else '❌ Not configured'}")
     
     # Quick tips
     with st.expander("💡 Quick Tips"):
         st.markdown("""
         - **Upload** or **paste** content - both work!
-        - **Supported formats**: TXT, DOCX, PDF
         - Use **rubrics** for consistent grading
         - Check **grammar feedback** for writing improvements
         - **Multiple students** can be graded at once
-        - **PDF support**: Extracts text from PDF documents
         """)
-    
-    # Installation help if PDF support is missing
-    if not pdf_available:
-        with st.expander("📄 Install PDF Support"):
-            st.code("pip install PyPDF2", language="bash")
-            st.markdown("Restart the app after installation.")
 
 # Main content with tabbed interface
 tab1, tab2, tab3 = st.tabs(["📥 Input Materials", "🎯 Grading Results", "📈 Analytics"])
@@ -440,8 +369,8 @@ with tab1:
         st.markdown("#### 📋 Exercise Description")
         ex_file = st.file_uploader(
             "Upload exercise document", 
-            type=["txt", "docx", "pdf"],
-            help="Upload a .txt, .docx, or .pdf file with the exercise instructions"
+            type=["txt","docx"],
+            help="Upload a .txt or .docx file with the exercise instructions"
         )
         ex_text_paste = st.text_area(
             "Or paste exercise description here", 
@@ -454,8 +383,8 @@ with tab1:
         student_files = st.file_uploader(
             "Upload student files", 
             accept_multiple_files=True, 
-            type=["txt", "docx", "pdf"],
-            help="Upload multiple student submissions at once (TXT, DOCX, or PDF)"
+            type=["txt","docx"],
+            help="Upload multiple student submissions at once"
         )
         student_paste = st.text_area(
             "Or paste student submissions", 
@@ -468,8 +397,8 @@ with tab1:
         st.markdown("#### 📖 Model Solution")
         model_file = st.file_uploader(
             "Upload model solution", 
-            type=["txt", "docx", "pdf"],
-            help="The ideal answer or reference solution for comparison (TXT, DOCX, or PDF)"
+            type=["txt","docx"],
+            help="The ideal answer or reference solution for comparison"
         )
         model_text_paste = st.text_area(
             "Or paste model solution here", 
@@ -490,30 +419,6 @@ with tab1:
             placeholder='Paste rubric JSON here. Example: {"criteria": [{"name": "Content", "weight": 0.7, "type": "similarity"}]}',
             help="Define custom grading criteria with weights and types"
         )
-    
-    # Show file format support info
-    st.markdown("---")
-    with st.expander("📋 Supported File Formats", expanded=False):
-        col_format1, col_format2, col_format3 = st.columns(3)
-        with col_format1:
-            st.markdown("**📄 TXT Files**")
-            st.markdown("- Plain text format")
-            st.markdown("- UTF-8 encoding")
-            st.markdown("- Direct text extraction")
-        
-        with col_format2:
-            st.markdown("**📝 DOCX Files**")
-            st.markdown("- Microsoft Word documents")
-            st.markdown("- Requires: `python-docx`")
-            st.markdown("- Extracts formatted text")
-        
-        with col_format3:
-            st.markdown("**📑 PDF Files**")
-            st.markdown("- Portable Document Format")
-            st.markdown("- Requires: `PyPDF2`")
-            st.markdown("- Extracts text content")
-            if not pdf_available:
-                st.error("PDF support not installed")
     
     # Action button with clear visual hierarchy
     st.markdown("---")
