@@ -423,7 +423,7 @@ with tab1:
         st.markdown("#### 📖 Model Solution")
         model_file = st.file_uploader(
             "Upload model solution", 
-            type=["txt","docx"],
+            type=["txt","docx", "pdf"],
             help="The ideal answer or reference solution for comparison"
         )
         model_text_paste = st.text_area(
