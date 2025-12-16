@@ -5,29 +5,29 @@ Applying HCI Principles: Progressive Disclosure, Immediate Feedback, Clear Affor
 """
 # Optional PDF import
 try:
-    import pdfplumber
+    #import pdfplumber
 except Exception:
     pdfplumber = None
 
-import os
-import json
-import time
-import streamlit as st
-from typing import List, Dict, Any, Optional
-import numpy as np
-from sentence_transformers import SentenceTransformer
-from sklearn.metrics.pairwise import cosine_similarity
-import requests
-from datetime import datetime
+#import os
+#import json
+#import time
+#import streamlit as st
+#from typing import List, Dict, Any, Optional
+#import numpy as np
+#from sentence_transformers import SentenceTransformer
+#from sklearn.metrics.pairwise import cosine_similarity
+#import requests
+#from datetime import datetime
 
 # Optional imports
 try:
-    import docx2txt
+    #import docx2txt
 except Exception:
     docx2txt = None
 
 try:
-    import language_tool_python
+    #import language_tool_python
     lang_tool = language_tool_python.LanguageTool("en-US")
 except Exception:
     lang_tool = None
